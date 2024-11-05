@@ -1,13 +1,13 @@
 # History files
-.Rhistory
-.Rapp.history
+Eda/.Rhistory
+Eda/.Rapp.history
 
 # Session Data files
-.RData
-.RDataTmp
+Eda/.RData
+Eda/.RDataTmp
 
 # User-specific files
-.Ruserdata
+Eda/.Ruserdata
 
 # Example code in package build process
 *-Ex.R
@@ -19,7 +19,7 @@
 /*.Rcheck/
 
 # RStudio files
-.Rproj.user/
+Eda/.Rproj.user/
 
 # produced vignettes
 vignettes/*.html
@@ -47,3 +47,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Data folder
+Eda/data/
