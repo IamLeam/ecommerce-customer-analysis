@@ -1,0 +1,521 @@
+---
+title: "EDA for ecommerce customer"
+author: "Y Cao Lam"
+output: html_document
+---
+
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(boot)
+library(ggplot2)
+library(readxl)
+library(plotly)
+library(stringr)
+library(reshape2)
+```
+
+# EDA Order 
+## EDA
+
+```{r}
+data <- read_excel('data/Sample_Customore_Order raw.xlsx',  sheet = 'raw')
+glimpse(data)
+```
+
+```{r}
+duplicate_rows <- data %>% dplyr::filter(duplicated(.))
+
+# View the duplicate rows
+glimpse(duplicate_rows)
+```
+
+```{r}
+data <- data |>  distinct()
+glimpse(data)
+```
+
+
+```{r}
+data_total_price <- data |> mutate(total_price = selling_price + shipping_fee,
+                  .before = 1)
+data_sum <- data_total_price
+data_sum <- data_sum |> group_by(created_day) |> summarise(total_price = sum(total_price))
+glimpse(data_sum)
+```
+
+
+
+
+```{r}
+highlight_date <- as.Date(c("2019-07-12", "2019-07-21"))
+
+# Create the ggplot2 object
+p <- ggplot(data_sum, aes(x=created_day, y=total_price)) +
+  geom_line(color="steelblue") + 
+  geom_point(data = subset(data_sum, created_day %in% highlight_date),
+             aes(x = created_day, y = total_price),
+             color = "red", size = 2, shape = 21, fill = "red", show.legend = TRUE) + 
+  xlab("") +
+  geom_text(data = subset(data_sum, created_day %in% highlight_date),
+            aes(x = created_day, y = total_price, 
+                label = paste("\n\nDate:", created_day, "   Total:", total_price)),
+            vjust = -1.5, hjust = 1.1, color = "black", size = 3) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+p <- ggplotly(p)
+p
+```
+
+```{r}
+data_mean <- data_total_price
+data_mean <- data_mean |> group_by(created_day) |> summarise(mean_price = mean(total_price))
+glimpse(data_mean)
+```
+
+
+```{r}
+p <- ggplot(data_mean, aes(x=created_day, y=mean_price)) +
+  geom_line( color="steelblue") +
+  geom_point(data = subset(data_mean, created_day %in% highlight_date),
+             aes(x = created_day, y = mean_price),
+             color = "red", size = 2, shape = 21, fill = "red") +
+  xlab("") +
+  geom_text(data = subset(data_mean, created_day %in% highlight_date),
+            aes(x = created_day, y = mean_price, 
+                label = paste("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tDate:", created_day, "\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tMean:", round(mean_price))),
+            vjust = -1.5, hjust = 1.1, color = "black", size = 3) +
+  theme(axis.text.x=element_text(angle=60, hjust=1))
+p <- ggplotly(p)
+p
+```
+
+
+```{r}
+data_factor <- data
+data_factor$payment_method <- factor(data_factor$payment_method)
+data_factor$order_status <- factor(data_factor$order_status)
+
+group_payment_method <- function(method) {
+  case_when(
+    str_detect(method, "VN Airpay Ibanking") ~ "VN Airpay Ibanking",
+    TRUE ~ as.character(method)
+  )
+}
+data_factor <- data_factor |> mutate(payment_method = sapply(payment_method, group_payment_method))
+data_factor$payment_method <- factor(data_factor$payment_method)
+data_factor$item_quantity <- factor(data_factor$item_quantity)
+data_factor <- data_factor |> mutate(total_price = selling_price + shipping_fee,
+                  .before = 1)
+p <- ggplot_count_plot <- ggplot(data_factor, aes(x = payment_method)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Count of Payment Methods",
+       x = "Payment Method",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p <- ggplotly(p)
+p
+```
+
+
+```{r}
+p <- ggplot_count_plot <- ggplot(data_factor, aes(x = payment_method, fill = order_status)) +
+  geom_bar() +
+  scale_fill_manual(values = c("COMPLETED" = "steelblue", "CANCELLED" = "tomato")) +
+  labs(title = "Count of Payment Methods by Order Status",
+       x = "Payment Method",
+       y = "Count",
+       fill = "Order Status") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p <- ggplotly(p)
+p
+```
+
+
+
+
+```{r}
+data_factor1 <- data_factor |> dplyr::filter(data_factor$payment_method != "Cash on Delivery")
+p <- ggplot_count_plot <- ggplot(data_factor1, aes(x = payment_method, fill = order_status)) +
+  geom_bar() +
+  scale_fill_manual(values = c("COMPLETED" = "steelblue", "CANCELLED" = "tomato")) +
+  labs(title = "Count of Payment Methods by Order Status (excluded COD)",
+       x = "Payment Method",
+       y = "Count",
+       fill = "Order Status") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+p <- ggplotly(p)
+p
+```
+
+
+
+```{r}
+p <- ggplot_count_plot <- ggplot(data_factor, aes(x = item_quantity)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Count of Item Quantity",
+       x = "Item Quantity",
+       y = "Count") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+p <- ggplotly(p)
+p
+```
+
+
+```{r}
+data_sum_orderid <- data_factor
+data_sum_orderid <- data_sum_orderid |> group_by(customer_unique_id, order_id, order_status, payment_method) |>  summarise(total_price = sum(total_price), .groups = 'drop')
+glimpse(data_sum_orderid)
+```
+
+```{r}
+data_sum_order_complete <- data_sum_orderid |> dplyr::filter(data_sum_orderid$order_status == "COMPLETED")
+# Define the two payment methods to highlight
+highlight_methods <- c("Airpay GIRO", "Cash on Delivery")
+
+
+p <- ggplot(data_sum_order_complete, aes(x = payment_method, y = total_price)) +
+  geom_jitter(aes(color = ifelse(payment_method %in% highlight_methods, as.character(payment_method), "Other")),
+              width = 0.2, height = 0) + 
+  scale_color_manual(values = c(
+    "Airpay GIRO" = "steelblue",
+    "Cash on Delivery" = "tomato",
+    "Other" = "grey"
+  )) +
+  labs(title = "Scatter Plot of Payment Method vs Revenue",
+       x = "Payment Method",
+       y = "Revenue",
+       color = "Payment Method") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+p
+```
+
+
+```{r}
+data_summary <- data_sum_orderid %>%
+  group_by(order_status) %>%
+  summarize(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100)  # Calculate percentage
+
+# Create a pie chart for the ratio of completed to canceled orders with custom colors
+p <- ggplot(data_summary, aes(x = "", y = count, fill = order_status)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  labs(title = "Ratio of Completed to Canceled Orders") +
+  theme_void() +
+  theme(legend.title = element_blank()) +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            color = "black", 
+            size = 4,         
+            fontface = "bold") +
+  scale_fill_manual(values = c("COMPLETED" = "steelblue", "CANCELLED" = "tomato"))
+
+
+# Print the interactive plotly plot
+p
+```
+
+## AB testing
+
+```{r}
+data_sum_test <- data_total_price
+data_sum_test <- data_sum_test |> group_by(customer_unique_id, order_id, order_status, shipping_fee) |>  summarise(shipping_fee = unique(shipping_fee), .groups = 'drop')
+glimpse(data_sum_test)
+```
+
+```{r}
+data_sum_order_complete_test <- data_sum_test |> dplyr::filter(data_sum_test$order_status == "COMPLETED")
+glimpse(data_sum_order_complete_test)
+```
+
+```{r}
+data_sum_order_cancel_test <- data_sum_test |> dplyr::filter(data_sum_test$order_status == "CANCELLED")
+glimpse(data_sum_order_cancel_test)
+```
+
+```{r}
+data_sum_test |> dplyr::filter(data_sum_test$customer_unique_id == 8)
+```
+
+```{r}
+ab_test <- merge(data_sum_order_complete_test, data_sum_order_cancel_test, by = "customer_unique_id")
+glimpse(ab_test)
+```
+
+```{r}
+test1_t <- ab_test
+test2_t <- ab_test
+test1_t[5:7] <- NULL 
+glimpse(test1_t)
+test2_t[2:4] <- NULL 
+glimpse(test2_t)
+```
+We consider the question: "Does the shipping fee of an order influence whether a customer accepts or cancels it?"
+
+We will focus on customers who meet both of the following conditions: "have canceled at least one order" and "have completed at least one order."
+
+```{r}
+test1_t <- test1_t  |>  distinct()
+test2_t <- test2_t  |>  distinct()
+test1_sum_t <- test1_t |> group_by(customer_unique_id) |> summarise(shipping_fee.x = sum(shipping_fee.x))
+test2_sum_t <- test2_t |> group_by(customer_unique_id) |> summarise(shipping_fee.y = sum(shipping_fee.y))
+ab_tess_1 <- merge(test1_sum_t, test2_sum_t, by = "customer_unique_id")
+ab_tess_1 <- ab_tess_1 |> rename(shipping_fee_completed = shipping_fee.x) |> rename(shipping_fee_cancelled = shipping_fee.y)
+glimpse(ab_tess_1)
+```
+
+```{r}
+mean_complete <- mean(ab_tess_1$shipping_fee_completed )
+mean_cancel <- mean(ab_tess_1$shipping_fee_cancelled)
+print(sprintf("Mean of price for completed order: %.10f", mean_complete))
+print(sprintf("Mean of price for cancelled order: %.10f", mean_cancel))
+data_plot <- tibble(
+  order_status = c("Completed", "Canceled"),
+  mean_shipping_fee = c(mean_complete, mean_cancel)
+)
+```
+
+```{r}
+# Draw a bar plot using ggplot
+p <- ggplot(data_plot, aes(x = order_status, y = mean_shipping_fee, fill = order_status)) +
+  geom_bar(stat = "identity", width = 0.5) +
+  labs(title = "Mean Shipping Fee by Order Status (for a selected group of customer)",
+       x = "Order Status",
+       y = "Mean Shipping Fee") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Completed" = "steelblue", "Canceled" = "tomato")) +
+  theme(text = element_text(size = 10, face = "bold"))
+
+# Print the plot
+print(p)
+```
+
+
+
+For the selected customers, we observe that the average shipping fee for completed orders is lower than that of the orders they canceled.
+
+A hypothesis can be proposed: "The shipping fee for canceled orders is higher than that for successful orders." Therefore, we need to test the following null and alternative hypotheses:
+
+Null hypothesis: $H_0: \mu_0 = \mu_1$
+Alternative hypothesis: $H_1: \mu_1 < \mu_0$
+
+Where $\mu_0$ is the average shipping fee of canceled orders, and $\mu_1$ is the average shipping fee of completed orders.
+
+If $H_0$ is true, the difference in shipping fees between successful and canceled orders is purely a result of chance and is not statistically significant. To test this hypothesis, we will use a permutation test, and the p-value will be calculated for the left-tailed test.
+
+```{r}
+perm_fun <- function(x1, x0, R) 
+{
+  n1 <- length(x1)
+  n0 <- length(x0)
+  n <- n1 + n0
+  mean_diff <- numeric(R)
+  combined_data <- c(x1, x0)
+  
+  for (i in 1:R) {
+    idx_1 <- sample(x = 1:n, size = n1)
+    idx_0 <- setdiff(1:n, idx_1)
+    mean_diff[i] <- mean(combined_data[idx_1]) - mean(combined_data[idx_0])
+  }
+  
+  return(mean_diff)
+}
+
+x1 <- ab_tess_1$shipping_fee_completed
+x0 <- ab_tess_1$shipping_fee_cancelled
+
+# Set the number of permutations
+R <- 10000
+
+# Run the permutation test
+set.seed(42)
+mean_diffs <- perm_fun(x1, x0, R)
+ggplot(data = tibble(perm_diffs = mean_diffs), aes(x = perm_diffs)) +
+  geom_histogram(bins = 10, fill = "gray80", color = "black") +
+  labs(x = "Prices differences", y = "Frequency") +
+  theme_bw()
+```
+
+```{r}
+result <- mean(mean_diffs < (mean_complete - mean_cancel))
+# Print the result
+print(result)
+```
+Since the p-value = 0 is smaller than both significance levels of 0.05 and 0.01, we reject the null hypothesis. This indicates that there is strong statistical evidence to conclude that the difference in shipping fees between completed and canceled orders is not due to random chance.
+
+Given the statistical significance, it suggests that higher shipping fees are indeed associated with a higher likelihood of order cancellation. In other words, the evidence supports the idea that shipping fees impact whether customers complete or cancel their orders.
+
+# EDA Traffic
+## EDA
+
+```{r}
+traffic <- read_excel('data/Sample_Customore_Traffic raw.xlsx')
+glimpse(traffic)
+```
+
+```{r}
+traffic <- traffic |> janitor::clean_names()
+traffic <- na.omit(traffic)
+glimpse(traffic)
+```
+
+```{r}
+traffic_num <- traffic[ -c(1) ]
+cor_matrix <- cor(traffic_num)
+
+
+melted_cor <- melt(cor_matrix)
+
+
+ggplot(melted_cor, aes(x=Var1, y=Var2, fill=value)) +
+  geom_tile() +
+  geom_text(aes(label=round(value, 2)), color="black", size=3) +
+  scale_fill_gradient2(low = "tomato", high = "tomato", mid = "white", midpoint = 0, 
+                       name = "Correlation") +
+  theme_minimal() +
+  labs(x = "Variables", y = "Variables", title = "Correlation Plot") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+```{r}
+traffic1 <- traffic |> mutate(percent_of_new_user = (new_users / users),
+                  .before = 4)
+glimpse(traffic1)
+```
+
+
+```{r}
+traffic1 <- traffic1[order(-traffic1$revenue), ][1:30,]
+top_10_users <- traffic1[1:10,]
+
+# Display the result
+print(top_10_users)
+```
+
+
+```{r}
+highlight_sources <- c("google / cpc", "(direct) / (none)")
+
+# Create a new column to highlight only selected sources
+top_10_users$highlight <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "Other")
+
+# Create the scatter plot
+ggplot(top_10_users, aes(x = users, y = revenue, size = revenue, color = highlight)) +
+  geom_point(alpha = 0.7) +  # Add transparency to the points
+  scale_size_continuous(range = c(3, 12), guide = "none") +  # Hide size legend
+  scale_x_log10() +  # Apply log10 transformation to the x-axis
+  scale_y_log10() +  # Apply log10 transformation to the y-axis
+  scale_color_manual(values = c("(direct) / (none)" = "green", "google / cpc" = "blue", "Other" = "grey")) +  # Custom colors
+  labs(x = "Users (log10)", y = "Revenue (log10)", color = "Source Medium") +
+  ggtitle("Scatter Plot Highlighting Two Source Mediums") +
+  theme_minimal() +
+  theme(legend.position = "right",
+    legend.text = element_text(size = 10),  # Increase legend text size
+    legend.title = element_text(size = 10))
+```
+
+
+```{r}
+top_10_users <- top_10_users |> dplyr::filter(top_10_users$source_medium != "google / cpc")
+highlight_sources <- c("youtube / social", "(direct) / (none)", "facebook / social")
+
+
+top_10_users$highlight <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "Other")
+
+
+ggplot(top_10_users, aes(x = users, y = revenue, size = revenue, color = highlight)) +
+  geom_point(alpha = 0.7) +  # Add transparency 
+  scale_size_continuous(range = c(3, 12), guide = "none") +  # Hide size legend
+  scale_x_log10() +  # Apply log10 transformation 
+  scale_y_log10() +  # Apply log10 transformation 
+  scale_color_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "Other" = "grey")) +  # Custom colors
+  labs(x = "Users (log10)", y = "Revenue (log10)", color = "Source Medium") +
+  ggtitle("Scatter Plot Highlighting Three Source Mediums") +
+  theme_minimal() +
+  theme(legend.position = "right",
+    legend.text = element_text(size = 10),  # Increase legend text size
+    legend.title = element_text(size = 10))
+```
+
+```{r}
+# Create a new column to highlight only selected sources
+top_10_users$highlight <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "Other")
+
+
+ggplot(top_10_users, aes(x = new_users, y = revenue, size = revenue, color = highlight)) +
+  geom_point(alpha = 0.7) +  # Add transparency 
+  scale_size_continuous(range = c(3, 12), guide = "none") +  # Hide size legend
+  scale_x_log10() +  # Apply log10 transformation 
+  scale_y_log10() +  # Apply log10 transformation 
+  scale_color_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "Other" = "grey")) +  # Custom colors
+  labs(x = "New Users (log10)", y = "Revenue (log10)", color = "Source Medium") +
+  ggtitle("Scatter Plot Highlighting Three Source Mediums") +
+  theme_minimal() +
+  theme(legend.position = "right",
+    legend.text = element_text(size = 10),  # Increase legend text size
+    legend.title = element_text(size = 10))
+```
+
+```{r}
+
+top_10_users$color <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "gray")
+
+
+ggplot(top_10_users, aes(x = reorder(source_medium, percent_of_new_user), y = percent_of_new_user, fill = color)) +
+  geom_bar(stat = "identity") +  # Bar plot
+  coord_flip() +  # Flip coordinates for better readability
+  scale_fill_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "gray" = "gray")) +  # Custom colors
+  labs(x = "Source Medium", y = "Percent of new users", title = "Percent of new users by Source Medium") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+
+```{r}
+
+top_10_users$color <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "gray")
+
+
+ggplot(top_10_users, aes(x = reorder(source_medium, bounce_rate), y = bounce_rate, fill = color)) +
+  geom_bar(stat = "identity") +  # Bar plot
+  coord_flip() +  # Flip coordinates for better readability
+  scale_fill_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "gray" = "gray")) +  # Custom colors
+  labs(x = "Source Medium", y = "Bounce Rate (Lower is better)", title = "Bounce Rate by Source Medium") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+
+top_10_users$color <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "gray")
+
+
+ggplot(top_10_users, aes(x = reorder(source_medium, ecommerce_conversion_rate), y = ecommerce_conversion_rate, fill = color)) +
+  geom_bar(stat = "identity") +  # Bar plot
+  coord_flip() +  # Flip coordinates for better readability
+  scale_fill_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "gray" = "gray")) +  # Custom colors
+  labs(x = "Source Medium", y = "Ecommerce Conversion Rate (Higher is better)", title = "Ecommerce Conversion Rate by Source Medium") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+
+top_10_users$color <- ifelse(top_10_users$source_medium %in% highlight_sources, top_10_users$source_medium, "gray")
+
+
+ggplot(top_10_users, aes(x = reorder(source_medium, avg_session_duration), y = avg_session_duration, fill = color)) +
+  geom_bar(stat = "identity") +  # Bar plot
+  coord_flip() +  # Flip coordinates for better readability
+  scale_fill_manual(values = c("(direct) / (none)" = "green", "youtube / social" = "red", "facebook / social" = "blue", "gray" = "gray")) +  # Custom colors
+  labs(x = "Source Medium", y = "Average session duration (Higher is better)", title = "Average session duration by Source Medium") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
