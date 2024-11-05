@@ -1,5 +1,5 @@
 ---
-title: "EDA for ecommerce customer"
+title: "Ecommerce customer analysis"
 author: "Y Cao Lam"
 output: html_document
 ---
